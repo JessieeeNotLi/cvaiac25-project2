@@ -71,25 +71,28 @@ def sample_proposals(pred, target, xyz, feat, config, train=False):
 
         n_easy, n_hard = len(bg_easy_idx), len(bg_hard_idx)
 
-        # ==================== Not 100% sure of this ==========================
-        half_bg = bg_samples // 2
-
         if n_easy > 0:
-            easy_choose = np.random.choice(n_easy, half_bg, replace=(n_easy < half_bg))
-            easy_idx = bg_easy_idx[easy_choose]
-        else:
-            easy_idx = np.random.choice(bg_idx, half_bg, replace=(b_n < half_bg))
 
-        remaining = bg_samples - half_bg
-        if n_hard > 0:
-            hard_choose = np.random.choice(n_hard, remaining, replace=(n_hard < remaining))
-            hard_idx = bg_hard_idx[hard_choose]
-        else:
-            hard_idx = np.random.choice(bg_idx, remaining, replace=(b_n < remaining))
-        
-        # ==================================================================================
+            if n_hard > 0:
+                # there is at least one of both
+                half_bg = bg_samples // 2
+                easy_choose = np.random.choice(n_easy, half_bg, replace=(n_easy < half_bg))
 
-        b_idx = np.concatenate([easy_idx, hard_idx])
+                remaining = bg_samples - half_bg
+                hard_choose = np.random.choice(n_hard, remaining, replace=(n_hard < remaining))
+
+                easy_idx = bg_easy_idx[easy_choose]
+                hard_idx = bg_hard_idx[hard_choose]
+                b_idx = np.concatenate([easy_idx, hard_idx])
+
+            else:
+                # no hard samples, sample all from easy
+                easy_choose = np.random.choice(n_easy, bg_samples, replace=(n_easy < bg_samples))
+                b_idx = bg_easy_idx[easy_choose]
+        else:
+            # no easy samples, sample all from hard
+            hard_choose = np.random.choice(n_hard, bg_samples, replace=(n_hard < bg_samples))
+            b_idx = bg_hard_idx[hard_choose]
 
     else:
         # background does not exist
