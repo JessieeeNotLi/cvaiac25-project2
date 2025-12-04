@@ -1,5 +1,21 @@
 import numpy as np
 
+def is_inside(p, pred):
+      
+    cx, cy, cz, h, w, l, ry = box
+
+    # 1. Translate point into box coordinate frame
+    px, py, pz = p - np.array([cx, cy, cz])
+
+    c = np.cos(ry)
+    s = np.sin(ry)
+
+    x_local =  c * px + -s * pz
+    y_local =  py
+    z_local =  s * px +  c * pz
+
+    return (-h <= y_local <= 0) and (-l/2 <= x_local <= l/2) and (-w/2 <= z_local <= w/2)
+
 def roi_pool(pred, xyz, feat, config):
     '''
     Task 2
@@ -27,4 +43,31 @@ def roi_pool(pred, xyz, feat, config):
         config['delta'] extend the bounding box by delta on all sides (in meters)
         config['max_points'] number of points in the final sampled ROI
     '''
-    pass
+    pred_enlarged = np.copy(pred)
+    delta = config['delta']
+    M = config['max_points']
+
+    # enlarge boxes
+    pred_enlarged[:,3:6] += 2 * delta
+
+    valid_pred = []
+    pooled_xyz = []
+    pooled_feat = []
+
+    for box in pred_enlarged:
+        idx = []
+
+        for i in range(xyz.shape[0]):
+            if is_inside(xyz[i], box):
+                idx.append(i)
+        
+        n = len(idx)
+        if n > 0:
+            idxs = np.random.choice(n, M, replace=(n < M))
+            idx = np.array(idx)[idxs]
+            
+            pooled_xyz.append(xyz[idx])
+            pooled_feat.append(feat[idx])
+            valid_pred.append(box)
+
+    return valid_pred, pooled_xyz, pooled_feat

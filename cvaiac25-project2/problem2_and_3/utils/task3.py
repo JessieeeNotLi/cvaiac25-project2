@@ -33,4 +33,75 @@ def sample_proposals(pred, target, xyz, feat, config, train=False):
         config['num_fg_sample'] maximum allowed number of foreground samples
         config['bg_hard_ratio'] background hard difficulty ratio (#hard samples/ #background samples)
     '''
-    pass
+    IoU = get_iou(pred, target)                   
+    best_gt_idx = np.argmax(IoU, axis=1)          
+    best_iou = IoU[np.arange(pred.shape[0]), best_gt_idx]
+
+    fg_idx = np.where(best_iou >= config['t_fg_lb'])[0]
+    bg_idx = np.where(best_iou <  config['t_bg_up'])[0]
+
+    f_n, b_n = len(fg_idx), len(bg_idx)
+
+    f_idx = []
+    b_idx = []
+
+    total_samples = 64
+
+    if b_n > 0:
+        
+        if f_n > 0:
+            # foreground and background exist
+            fg_samples = min(f_n, config['num_fg_sample'])
+            bg_samples = total_samples - fg_samples
+
+            f_choose = np.random.choice(f_n, fg_samples, replace=(f_n < fg_samples))
+            f_idx = fg_idx[f_choose]
+
+        else:
+            # only background exist
+            fg_samples = 0
+            bg_samples = total_samples
+
+
+        bg_iou = best_iou[bg_idx]
+        easy_mask = bg_iou < config['t_bg_hard_lb']
+
+        bg_easy_idx = bg_idx[easy_mask]     
+        bg_hard_idx = bg_idx[~easy_mask]   
+
+        n_easy, n_hard = len(bg_easy_idx), len(bg_hard_idx)
+
+        # ==================== Not 100% sure of this ==========================
+        half_bg = bg_samples // 2
+
+        if n_easy > 0:
+            easy_choose = np.random.choice(n_easy, half_bg, replace=(n_easy < half_bg))
+            easy_idx = bg_easy_idx[easy_choose]
+        else:
+            easy_idx = np.random.choice(bg_idx, half_bg, replace=(b_n < half_bg))
+
+        remaining = bg_samples - half_bg
+        if n_hard > 0:
+            hard_choose = np.random.choice(n_hard, remaining, replace=(n_hard < remaining))
+            hard_idx = bg_hard_idx[hard_choose]
+        else:
+            hard_idx = np.random.choice(bg_idx, remaining, replace=(b_n < remaining))
+        
+        # ==================================================================================
+
+        b_idx = np.concatenate([easy_idx, hard_idx])
+
+    else:
+        # background does not exist
+        f_choose = np.random.choice(f_n, total_samples, replace=(f_n < total_samples))
+        f_idx = fg_idx[f_choose]
+    
+    sampled_indices = np.concatenate([f_idx, b_idx])
+
+
+    sampled_ious = best_iou[sampled_indices]
+    assigned_targets = target[best_gt_idx[sampled_indices]]
+    xyz_out  = xyz[sampled_indices]
+    feat_out = feat[sampled_indices]
+
+    return assigned_targets, xyz_out, feat_out, sampled_ious
