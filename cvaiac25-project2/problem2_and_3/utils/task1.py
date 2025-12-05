@@ -10,7 +10,7 @@ def label2corners(label):
         corners (N,8,3) corner coordinates in rectified reference frame
     '''
 
-    corners = np.zeros((label.shape[0], 8, 3))  # output array
+    corners = np.zeros((len(label), 8, 3))  # output array
 
     for i, (x, y, z, h, w, l, ry) in enumerate(label):
 
@@ -54,7 +54,7 @@ def get_iou(pred, target):
     output
         iou (N,M) pairwise 3D intersection-over-union
     '''
-    N, M = pred.shape[0], target.shape[0]
+    N, M = len(pred), len(target)
     p_corners, t_corners = label2corners(pred), label2corners(target)
 
     # Extract bottom face corners and project to BEV      
@@ -98,6 +98,6 @@ def compute_recall(pred, target, threshold):
     '''
     iou = get_iou(pred, target)
     TP = np.sum(np.max(iou, axis=0) >= threshold)
-    FN = target.shape[0] - TP
+    FN = len(target) - TP
 
     return TP / (TP + FN) if (TP + FN) > 0 else 0.0

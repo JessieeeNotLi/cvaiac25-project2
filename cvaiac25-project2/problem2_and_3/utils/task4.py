@@ -7,6 +7,8 @@ class RegressionLoss(nn.Module):
         self.config = config
         self.loss = nn.SmoothL1Loss()
 
+        self.positive_reg_lb = self.config.get('positive_reg_lb', 0.55)
+
     def forward(self, pred, target, iou):
         '''
         Task 4.a
@@ -22,13 +24,25 @@ class RegressionLoss(nn.Module):
         useful config hyperparameters
             self.config['positive_reg_lb'] lower bound for positive samples
         '''
-        pass
+        positive_mask = iou >= self.positive_reg_lb
+
+
+        if positive_mask.sum() == 0:
+            return torch.tensor(0.0, device=iou.device)
+
+        
+        pred_pos = pred[positive_mask]
+        target_pos = target[positive_mask]
+        #print("reg inputs:", pred_pos.shape, target_pos.shape)
+        return self.loss(pred_pos, target_pos)
 
 class ClassificationLoss(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.loss = nn.BCELoss()
+        self.positive_cls_lb = self.config.get('positive_cls_lb', 0.6)
+        self.negative_cls_ub = self.config.get('negative_cls_ub', 0.45)
 
     def forward(self, pred, iou):
         '''
@@ -44,4 +58,22 @@ class ClassificationLoss(nn.Module):
             self.config['positive_cls_lb'] lower bound for positive samples
             self.config['negative_cls_ub'] upper bound for negative samples
         '''
-        pass
+        positive_mask = iou >= self.positive_cls_lb
+        negative_mask = iou <= self.negative_cls_ub
+
+        train_mask = positive_mask | negative_mask
+        if train_mask.sum() == 0:
+            return torch.tensor(0.0, device=iou.device)
+
+        target_full = torch.zeros_like(pred, device=iou.device)
+        target_full[positive_mask] = 1.0
+
+        pred_train = pred[train_mask]
+        target_train = target_full[train_mask]
+
+        loss_val = self.loss(pred_train, target_train)
+        #print("num pos for regression:", (iou >= 0.55).sum().item())
+        #print("num cls train:", ((iou >= 0.6) | (iou <= 0.45)).sum().item())
+        #print("any NaNs in pred before loss:", torch.isnan(pred).any())
+
+        return loss_val

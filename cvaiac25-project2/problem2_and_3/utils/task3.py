@@ -35,7 +35,7 @@ def sample_proposals(pred, target, xyz, feat, config, train=False):
     '''
     IoU = get_iou(pred, target)                   
     best_gt_idx = np.argmax(IoU, axis=1)          
-    best_iou = IoU[np.arange(pred.shape[0]), best_gt_idx]
+    best_iou = IoU[np.arange(len(pred)), best_gt_idx]
 
     fg_idx = np.where(best_iou >= config['t_fg_lb'])[0]
     bg_idx = np.where(best_iou <  config['t_bg_up'])[0]
@@ -99,12 +99,14 @@ def sample_proposals(pred, target, xyz, feat, config, train=False):
         f_choose = np.random.choice(f_n, total_samples, replace=(f_n < total_samples))
         f_idx = fg_idx[f_choose]
     
-    sampled_indices = np.concatenate([f_idx, b_idx])
+    sampled_indices = np.concatenate([f_idx, b_idx]).astype(int)
 
 
     sampled_ious = best_iou[sampled_indices]
     assigned_targets = target[best_gt_idx[sampled_indices]]
-    xyz_out  = xyz[sampled_indices]
+    xyz = np.array(xyz) 
+    xyz_out = xyz[sampled_indices]
+    feat = np.array(feat)
     feat_out = feat[sampled_indices]
 
     return assigned_targets, xyz_out, feat_out, sampled_ious

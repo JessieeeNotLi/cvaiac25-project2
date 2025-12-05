@@ -141,7 +141,7 @@ if __name__=='__main__':
 	if args.task in [1, 2]:
 		getattr(check, f'task{args.task}')(warmup=True)
 		getattr(check, f'task{args.task}')(warmup=True)
-		while psutil.cpu_percent(10) > 30:
+		while psutil.cpu_percent(10) > 60: #default 30
 			print("Wait until the cpu utilization is lower for a comparable runtime benchmark.")
 		print("Run actual tests.")
 	getattr(check, f'task{args.task}')()

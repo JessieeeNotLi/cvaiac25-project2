@@ -15,4 +15,23 @@ def nms(pred, score, threshold):
         s_f (M,7) 3D bounding boxes after NMS
         c_f (M,1) corresopnding confidence scores
     '''
-    pass
+    
+    order = np.argsort(-score, kind='quicksort')
+    keep = []
+
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+
+        if order.size == 1:
+            break
+
+        rest = order[1:]
+        ious = get_iou(pred[i:i+1], pred[rest])[0]
+
+        keep_mask = ious <= threshold
+        order = rest[keep_mask]
+
+    s_f = pred[keep]
+    c_f = score[keep][: , None]
+    return s_f, c_f

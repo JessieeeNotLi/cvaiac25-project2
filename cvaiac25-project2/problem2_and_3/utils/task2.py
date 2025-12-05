@@ -2,7 +2,7 @@ import numpy as np
 
 def is_inside(p, pred):
       
-    cx, cy, cz, h, w, l, ry = box
+    cx, cy, cz, h, w, l, ry = pred
 
     # 1. Translate point into box coordinate frame
     px, py, pz = p - np.array([cx, cy, cz])
@@ -16,6 +16,26 @@ def is_inside(p, pred):
 
     return (-h <= y_local <= 0) and (-l/2 <= x_local <= l/2) and (-w/2 <= z_local <= w/2)
 
+def points_in_box(xyz, box): #vectorized version of inside with numpy
+    cx,cy,cz,h,w,l,ry = box
+
+    pts = xyz - np.array([cx,cy,cz])
+    px,py,pz = pts[:,0], pts[:,1], pts[:,2]
+
+    c = np.cos(ry)
+    s = np.sin(ry)
+
+    x_local =  c * px + -s * pz
+    y_local =  py
+    z_local =  s * px +  c * pz
+
+    inside = (
+        (-h <= y_local) & (y_local <= 0) &
+        (-l / 2 <= x_local) & (x_local <= l / 2) &
+        (-w / 2 <= z_local) & (z_local <= w / 2)
+    )
+
+    return np.where(inside)[0]
 def roi_pool(pred, xyz, feat, config):
     '''
     Task 2
@@ -54,20 +74,28 @@ def roi_pool(pred, xyz, feat, config):
     pooled_xyz = []
     pooled_feat = []
 
-    for box in pred_enlarged:
-        idx = []
+    for box_enlarged, box in zip(pred_enlarged, pred):
 
-        for i in range(xyz.shape[0]):
-            if is_inside(xyz[i], box):
-                idx.append(i)
+        idxs= points_in_box(xyz, box_enlarged)  #indices of points inside the box
+        n = len(idxs)
+        if n == 0:
+            continue
         
-        n = len(idx)
-        if n > 0:
-            idxs = np.random.choice(n, M, replace=(n < M))
-            idx = np.array(idx)[idxs]
-            
-            pooled_xyz.append(xyz[idx])
-            pooled_feat.append(feat[idx])
-            valid_pred.append(box)
+        if n >= M:
+            chosen_idxs = np.random.choice(idxs, M, replace=False)
+        else:
+            all_idxs = np.random.choice(idxs, n, replace=False)
+            extra_idxs = np.random.choice(idxs, M - n, replace=True)
+            chosen_idxs = np.concatenate([all_idxs, extra_idxs], axis=0)
 
+        pooled_xyz.append(xyz[chosen_idxs])
+        pooled_feat.append(feat[chosen_idxs])
+        valid_pred.append(box)
+
+    if len(valid_pred) == 0:
+        return np.zeros((0,7)), np.zeros((0,M,3)), np.zeros((0,M,feat.shape[1]))
+    
+    valid_pred = np.asarray(valid_pred, dtype=pred.dtype)  
+    pooled_xyz = np.stack(pooled_xyz, axis=0)             
+    pooled_feat = np.stack(pooled_feat, axis=0)            
     return valid_pred, pooled_xyz, pooled_feat
